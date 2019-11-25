@@ -1,7 +1,9 @@
 import os
+import subprocess
 from codecs import open
 
 from setuptools import setup
+from setuptools.command import build_py, develop
 
 here = os.path.abspath(os.path.dirname(__file__))
 
@@ -17,12 +19,30 @@ def readme():
         return f.read()
 
 
-install_requires = ["logueur"]
+class CustomDevelop(develop.develop):
+    """
+    Class needed for "pip install -e ."
+    """
 
-extras_require = {
-    "dev": ["bump2version", "pre-commit"],
-    "test": ["pytest", "pytest-cov"],
-}
+    def run(self):
+        subprocess.check_call("make lib", shell=True)
+        super(CustomDevelop, self).run()
+
+
+class CustomBuildPy(build_py.build_py):
+    """
+    Class needed for "pip install plyflatten"
+    """
+
+    def run(self):
+        super(CustomBuildPy, self).run()
+        subprocess.check_call("make lib", shell=True)
+        subprocess.check_call("cp -r lib build/lib/", shell=True)
+
+
+install_requires = ["affine", "numpy", "plyfile", "pyproj"]
+
+extras_require = {"dev": ["bump2version", "pre-commit"], "test": ["pytest", "pytest-cov"]}
 
 setup(
     name=about["__title__"],
@@ -40,4 +60,5 @@ setup(
           [console_scripts]
           plyflatten=plyflatten.cli:main
       """,
+    cmdclass={"develop": CustomDevelop, "build_py": CustomBuildPy},
 )

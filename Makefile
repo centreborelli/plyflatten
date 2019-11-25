@@ -1,10 +1,11 @@
-.PHONY: help install test release-patch release-minor release-major
+.PHONY: help install test release-patch release-minor release-major clean
 
 .DEFAULT: help
 help:
 	@echo "make install"
 	@echo "    Install the package in editable mode with the \`dev\` and"
-	@echo "    \`test\` extras and run \`pre-commit install\`"
+	@echo "    \`test\` extras and run \`pre-commit install\`,"
+	@echo "    and compile the C code."
 	@echo
 	@echo "make test"
 	@echo "    Run tests with \`pytest\`"
@@ -12,6 +13,13 @@ help:
 	@echo "make release-{patch,minor,major}"
 	@echo "    Increment the version number to the next patch/minor/major"
 	@echo "    version (following semanting versioning) using \`bumpversion\`"
+
+
+lib: lib/libplyflatten.so
+
+lib/libplyflatten.so: src/plyflatten.c src/*.c
+	mkdir -p lib
+	$(CC) $(CFLAGS) -fPIC -shared -o $@ $<
 
 install:
 	pip install -e ".[dev,test]"
@@ -49,3 +57,10 @@ dev:
 	@# Increment to the new patch (automatically adds -dev0 to it)
 	bumpversion patch --message "Post-release: {new_version}"
 	@echo "${BOLD}Current version: $$(bumpversion --dry-run --list patch | grep current_version | cut -d= -f2)${NORMAL}"
+
+clean:
+	find . -name '*.pyc' -delete
+	find . -name '__pycache__' -type d | xargs rm -fr
+	rm -rf lib/
+	rm -rf pip-wheel-metadata/
+	rm -rf *.egg-info/

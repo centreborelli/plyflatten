@@ -11,3 +11,5 @@ dist/
 pip-wheel-metadata/
 
 logs
+
+lib/

@@ -3,21 +3,17 @@
 
 import ctypes
 import os
-import re
 
 import affine
 import numpy as np
 from numpy.ctypeslib import ndpointer
-from s2p import geographiclib, ply
+
+from plyflatten import utils
 
 # TODO: This is kind of ugly. Cleaner way to do this is to update
 # LD_LIBRARY_PATH, which we should do once we have a proper config file
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 lib = ctypes.CDLL(os.path.join(parent_dir, "lib", "libplyflatten.so"))
-
-
-class InvalidPlyCommentsError(Exception):
-    pass
 
 
 def plyflatten(cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma):
@@ -97,7 +93,7 @@ def plyflatten_from_plyfiles_list(clouds_list, resolution, radius=0, roi=None, s
     # read points clouds
     full_cloud = list()
     for cloud in clouds_list:
-        cloud_data, _ = ply.read_3d_point_cloud_from_ply(cloud)
+        cloud_data, _ = utils.read_3d_point_cloud_from_ply(cloud)
         full_cloud.append(cloud_data.astype(np.float64))
 
     full_cloud = np.concatenate(full_cloud)
@@ -123,8 +119,8 @@ def plyflatten_from_plyfiles_list(clouds_list, resolution, radius=0, roi=None, s
     sigma = float("inf") if sigma is None else sigma
     raster = plyflatten(full_cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma)
 
-    utm_zone = utm_zone_from_ply(clouds_list[0])
-    utm_proj = geographiclib.utm_proj(utm_zone)
+    utm_zone = utils.utm_zone_from_ply(clouds_list[0])
+    utm_proj = utils.utm_proj(utm_zone)
 
     # construct profile dict
     profile = dict()
@@ -134,20 +130,3 @@ def plyflatten_from_plyfiles_list(clouds_list, resolution, radius=0, roi=None, s
     profile["transform"] = affine.Affine(resolution, 0.0, xoff, 0.0, -resolution, yoff)
 
     return raster, profile
-
-
-def utm_zone_from_ply(ply_path):
-    _, comments = ply.read_3d_point_cloud_from_ply(ply_path)
-    regex = r"^projection: UTM (\d{1,2}[NS])"
-    utm_zone = None
-    for comment in comments:
-        s = re.search(regex, comment)
-        if s:
-            utm_zone = s.group(1)
-
-    if not utm_zone:
-        raise InvalidPlyCommentsError(
-            "Invalid header comments {} for ply file {}".format(comments, ply_path)
-        )
-
-    return utm_zone
