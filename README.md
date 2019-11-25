@@ -1,6 +1,6 @@
 # PlyFlatten
 
-Take a series of ply files and produce a digitial elevation map
+Take a series of ply files and produce a digital elevation map
 
 ## Contributing
 
