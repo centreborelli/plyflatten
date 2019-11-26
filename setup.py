@@ -42,7 +42,10 @@ class CustomBuildPy(build_py.build_py):
 
 install_requires = ["affine", "numpy", "plyfile", "pyproj"]
 
-extras_require = {"dev": ["bump2version", "pre-commit"], "test": ["pytest", "pytest-cov"]}
+extras_require = {
+    "dev": ["bump2version", "pre-commit"],
+    "test": ["pytest", "pytest-cov", "numpy", "rasterio"],
+}
 
 setup(
     name=about["__title__"],
