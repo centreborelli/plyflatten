@@ -1,0 +1,15 @@
+__pycache__/
+build/
+dist/
+*.egg-info/
+.coverage
+
+# This is created when installing a package in editable mode
+# and when there is a pyproject.toml file
+# It is solved in pip >= 19.3
+# https://github.com/pypa/pip/blob/master/NEWS.rst#193-2019-10-14
+pip-wheel-metadata/
+
+logs
+
+lib/
