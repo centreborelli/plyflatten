@@ -9,25 +9,39 @@ class InvalidPlyCommentsError(Exception):
     pass
 
 
-def utm_proj(utm_zone):
+def crs_proj(utm_zone, crs_type="UTM"):
     """
     Return a pyproj.Proj object that corresponds
-    to the given utm_zone string
+    to the given utm_zone string or EPSG code
 
     Args:
-        utm_zone (str): UTM zone number + hemisphere (eg: '30N')
+        crs_type (str): 'UTM' (default) or 'EPSG'
+        utm_zone (str): UTM zone number + hemisphere (eg: '30N') or EPSG code
 
     Returns:
         pyproj.Proj: object that can be used to transform coordinates
     """
-    zone_number = utm_zone[:-1]
-    hemisphere = utm_zone[-1]
-    return pyproj.Proj(
-        proj="utm", zone=zone_number, ellps="WGS84", datum="WGS84", south=(hemisphere == "S")
-    )
+    if crs_type == "UTM":
+        zone_number = utm_zone[:-1]
+        hemisphere = utm_zone[-1]
+        return pyproj.Proj(
+            proj="utm", zone=zone_number, ellps="WGS84", datum="WGS84", south=(hemisphere == "S")
+        )
+    elif crs_type == "EPSG":
+        return pyproj.Proj("epsg:{}".format(utm_zone))
 
 
-def utm_zone_from_ply(ply_path):
+def epsg_code_from_comments(comments):
+    regex = r"^projection: EPSG ([0-9]{4,5})"
+    epsg_code = None
+    for comment in comments:
+        s = re.search(regex, comment)
+        if s:
+            epsg_code = s.group(1)
+    return epsg_code
+
+
+def crs_from_ply(ply_path):
     _, comments = read_3d_point_cloud_from_ply(ply_path)
     regex = r"^projection: UTM (\d{1,2}[NS])"
     utm_zone = None
@@ -36,12 +50,18 @@ def utm_zone_from_ply(ply_path):
         if s:
             utm_zone = s.group(1)
 
+    epsg_code = None
     if not utm_zone:
+        epsg_code = epsg_code_from_comments(comments)
+
+    if not utm_zone and not epsg_code:
         raise InvalidPlyCommentsError(
             "Invalid header comments {} for ply file {}".format(comments, ply_path)
         )
 
-    return utm_zone
+    crs_type = "UTM" if utm_zone else "EPSG"
+
+    return utm_zone or epsg_code, crs_type
 
 
 def read_3d_point_cloud_from_ply(path_to_ply_file):
