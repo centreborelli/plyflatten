@@ -119,14 +119,14 @@ def plyflatten_from_plyfiles_list(clouds_list, resolution, radius=0, roi=None, s
     sigma = float("inf") if sigma is None else sigma
     raster = plyflatten(full_cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma)
 
-    utm_zone = utils.utm_zone_from_ply(clouds_list[0])
-    utm_proj = utils.utm_proj(utm_zone)
+    crs, crs_type = utils.crs_from_ply(clouds_list[0])
+    crs_proj = utils.crs_proj(crs, crs_type)
 
     # construct profile dict
     profile = dict()
     profile["tiled"] = True
     profile["nodata"] = float("nan")
-    profile["crs"] = utm_proj.srs
+    profile["crs"] = crs_proj.srs
     profile["transform"] = affine.Affine(resolution, 0.0, xoff, 0.0, -resolution, yoff)
 
     return raster, profile
