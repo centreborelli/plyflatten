@@ -9,50 +9,46 @@ class InvalidPlyCommentsError(Exception):
     pass
 
 
-def crs_proj(utm_zone, crs_type="UTM"):
+def crs_proj(crs_code, crs_type="UTM"):
     """
     Return a pyproj.Proj object that corresponds
-    to the given utm_zone string or EPSG code
+    to the given UTM zone string or EPSG code
 
     Args:
+        crs_code (str): UTM zone number + hemisphere (eg: '30N') or EPSG code
         crs_type (str): 'UTM' (default) or 'EPSG'
-        utm_zone (str): UTM zone number + hemisphere (eg: '30N') or EPSG code
 
     Returns:
         pyproj.Proj: object that can be used to transform coordinates
     """
     if crs_type == "UTM":
-        zone_number = utm_zone[:-1]
-        hemisphere = utm_zone[-1]
+        zone_number = crs_code[:-1]
+        hemisphere = crs_code[-1]
         return pyproj.Proj(
             proj="utm", zone=zone_number, ellps="WGS84", datum="WGS84", south=(hemisphere == "S")
         )
     elif crs_type == "EPSG":
-        return pyproj.Proj("epsg:{}".format(utm_zone))
+        return pyproj.Proj("epsg:{}".format(crs_code))
 
 
-def epsg_code_from_comments(comments):
-    regex = r"^projection: EPSG ([0-9]{4,5})"
-    epsg_code = None
+def crs_code_from_comments(comments, crs_type="UTM"):
+    re_type = "[0-9]{1,2}[NS]" if crs_type == "UTM" else "[0-9]{4,5}"
+    regex = r"^projection: {} ({})".format(crs_type, re_type)
+    crs_code = None
     for comment in comments:
         s = re.search(regex, comment)
         if s:
-            epsg_code = s.group(1)
-    return epsg_code
+            crs_code = s.group(1)
+    return crs_code
 
 
 def crs_from_ply(ply_path):
     _, comments = read_3d_point_cloud_from_ply(ply_path)
-    regex = r"^projection: UTM (\d{1,2}[NS])"
-    utm_zone = None
-    for comment in comments:
-        s = re.search(regex, comment)
-        if s:
-            utm_zone = s.group(1)
+    utm_zone = crs_code_from_comments(comments, crs_type="UTM")
 
     epsg_code = None
     if not utm_zone:
-        epsg_code = epsg_code_from_comments(comments)
+        epsg_code = crs_code_from_comments(comments, crs_type="EPSG")
 
     if not utm_zone and not epsg_code:
         raise InvalidPlyCommentsError(
