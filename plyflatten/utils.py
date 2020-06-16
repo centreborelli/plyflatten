@@ -38,7 +38,7 @@ def crs_proj(crs_params, crs_type="UTM"):
 
 
 def crs_code_from_comments(comments, crs_type="UTM"):
-    re_type = "[0-9]{1,2}[NS]" if crs_type == "UTM" else "(.*)"
+    re_type = "[0-9]{1,2}[NS]" if crs_type == "UTM" else ".*"
     regex = r"^projection: {} ({})".format(crs_type, re_type)
     crs_code = None
     for comment in comments:
