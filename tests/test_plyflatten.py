@@ -21,13 +21,14 @@ def clouds_list():
 
 
 @pytest.fixture()
-def expected_raster():
+def expected_dsm():
     here = os.path.abspath(os.path.dirname(__file__))
 
     with rasterio.open(os.path.join(here, "data", "result.tiff")) as f:
         raster = f.read(1)
+        gsd = f.res
 
-    return raster
+    return raster, gsd
 
 
 @pytest.fixture()
@@ -36,19 +37,21 @@ def ply_file_with_crs():
     return os.path.join(here, "data", "crs.ply")
 
 
-def test_plyflatten_from_plyfiles_list(clouds_list, expected_raster):
+def test_plyflatten_from_plyfiles_list(clouds_list, expected_dsm):
     raster, _ = plyflatten_from_plyfiles_list(clouds_list, resolution=2)
     raster = raster[:, :, 0]
 
+    expected_raster, _ = expected_dsm
     np.testing.assert_allclose(expected_raster, raster, equal_nan=True)
 
 
-def test_resolution(clouds_list, expected_raster):
-    raster, _ = plyflatten_from_plyfiles_list(clouds_list, resolution=4)
+def test_resolution(clouds_list, expected_dsm, r=4):
+    raster, _ = plyflatten_from_plyfiles_list(clouds_list, resolution=r)
     raster = raster[:, :, 0]
 
-    assert raster.shape[0] == expected_raster.shape[0] / 2
-    assert raster.shape[1] == expected_raster.shape[1] / 2
+    reference, (rx, ry) = expected_dsm
+    assert abs(raster.shape[0] * r - reference.shape[0] * rx) <= 2 * max(r, rx)
+    assert abs(raster.shape[1] * r - reference.shape[1] * ry) <= 2 * max(r, ry)
 
 
 def test_ply_comment_crs(ply_file_with_crs):
