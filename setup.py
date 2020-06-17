@@ -40,11 +40,11 @@ class CustomBuildPy(build_py.build_py):
         subprocess.check_call("cp -r lib build/lib/", shell=True)
 
 
-install_requires = ["affine", "numpy", "plyfile", "pyproj"]
+install_requires = ["affine", "numpy", "plyfile", "pyproj", "rasterio"]
 
 extras_require = {
     "dev": ["bump2version", "pre-commit"],
-    "test": ["pytest", "pytest-cov", "numpy", "rasterio"],
+    "test": ["pytest", "pytest-cov"],
 }
 
 setup(
