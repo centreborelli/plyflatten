@@ -1,0 +1,13 @@
+ply
+format binary_little_endian 1.0
+comment created by S2P
+comment projection: CRS epsg:32740
+element vertex 3
+property double x
+property double y
+property double z
+property uchar red
+property uchar green
+property uchar blue
+end_header
+��`���AO�h�0]AS�A>3��@www��.B��A$����0]AE�|�4��@aaaX/&���Aq�rÓ0]Au*��:��@nnn
