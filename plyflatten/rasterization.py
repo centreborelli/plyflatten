@@ -125,8 +125,11 @@ def plyflatten_from_plyfiles_list(clouds_list, resolution, radius=0, roi=None, s
     # construct profile dict
     profile = dict()
     profile["tiled"] = True
+    profile["compress"] = "deflate"
+    profile["predictor"] = 2
     profile["nodata"] = float("nan")
     profile["crs"] = crs_proj
-    profile["transform"] = affine.Affine(resolution, 0.0, xoff, 0.0, -resolution, yoff)
+    profile["transform"] = affine.Affine(resolution, 0.0, xoff,
+                                         0.0, -resolution, yoff)
 
     return raster, profile
