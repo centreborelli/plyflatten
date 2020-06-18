@@ -1,6 +1,6 @@
 repos:
   - repo: https://github.com/timothycrosley/isort
-    rev: develop
+    rev: 4.3.21
     hooks:
       - id: isort
         additional_dependencies: ["toml"]
