@@ -1,5 +1,6 @@
 import argparse
 import sys
+import os
 
 import rasterio
 
@@ -18,7 +19,7 @@ def main():
         help=("Resolution of the DSM in meters (defaults to 1m)"),
     )
     args = parser.parse_args()
-    raster, profile = plyflatten_from_plyfiles_list(args.list_plys, args.resolution)
+    raster, raster_std, profile = plyflatten_from_plyfiles_list(args.list_plys, args.resolution)
     raster = raster[:, :, 0]
     profile["dtype"] = raster.dtype
     profile["height"] = raster.shape[0]
@@ -29,6 +30,11 @@ def main():
     with rasterio.open(args.dsm_path, "w", **profile) as f:
         f.write(raster, 1)
 
+    raster_std = raster_std[:, :, 0]
+    dsm_path_id, dsm_path_extension = os.path.splitext(os.path.basename(args.dsm_path))
+    std_path = os.path.join(os.path.dirname(args.dsm_path), dsm_path_id + '_std' + dsm_path_extension)
+    with rasterio.open(std_path , "w", **profile) as f:
+        f.write(raster_std, 1)
 
 if __name__ == "__main__":
     sys.exit(main())  # pragma: no cover

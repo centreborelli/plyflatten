@@ -44,6 +44,7 @@ def plyflatten(cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma):
     lib.rasterize_cloud.argtypes = (
         ndpointer(dtype=ctypes.c_double, shape=np.shape(cloud)),
         ndpointer(dtype=ctypes.c_float, shape=raster_shape),
+        ndpointer(dtype=ctypes.c_float, shape=raster_shape),
         ctypes.c_int,
         ctypes.c_int,
         ctypes.c_double,
@@ -57,9 +58,11 @@ def plyflatten(cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma):
 
     # Call rasterize_cloud function from libplyflatten.so
     raster = np.zeros(raster_shape, dtype="float32")
+    raster_std = np.zeros(raster_shape, dtype="float32")
     lib.rasterize_cloud(
         np.ascontiguousarray(cloud.astype(np.float64)),
         raster,
+        raster_std,
         nb_points,
         nb_extra_columns,
         xoff,
@@ -73,8 +76,9 @@ def plyflatten(cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma):
 
     # Transform result into a numpy array
     raster = raster.reshape((ysize, xsize, nb_extra_columns))
+    raster_std = raster_std.reshape((ysize, xsize, nb_extra_columns))
 
-    return raster
+    return raster, raster_std
 
 
 def plyflatten_from_plyfiles_list(clouds_list, resolution, radius=0, roi=None, sigma=None):
@@ -118,7 +122,7 @@ def plyflatten_from_plyfiles_list(clouds_list, resolution, radius=0, roi=None, s
     # The copy() method will reorder to C-contiguous order by default:
     full_cloud = full_cloud.copy()
     sigma = float("inf") if sigma is None else sigma
-    raster = plyflatten(full_cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma)
+    raster, raster_std = plyflatten(full_cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma)
 
     crs, crs_type = utils.crs_from_ply(clouds_list[0])
     crs_proj = utils.rasterio_crs(utils.crs_proj(crs, crs_type))
@@ -132,4 +136,4 @@ def plyflatten_from_plyfiles_list(clouds_list, resolution, radius=0, roi=None, s
     profile["crs"] = crs_proj
     profile["transform"] = affine.Affine(resolution, 0.0, xoff, 0.0, -resolution, yoff)
 
-    return raster, profile
+    return raster, raster_std, profile
