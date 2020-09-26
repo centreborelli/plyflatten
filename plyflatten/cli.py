@@ -35,7 +35,7 @@ def main():
         n = raster.shape[2]
         assert n % 2 == 0
         with rasterio.open(args.std, "w", **profile) as f:
-            f.write(raster[:, :, n / 2], 1)
+            f.write(raster[:, :, n // 2], 1)
 
 
 if __name__ == "__main__":

@@ -80,7 +80,7 @@ def plyflatten(cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma, std=F
     raster = raster.reshape((ysize, xsize, nb_extra_columns))
     if std:
         raster_std = raster_std.reshape((ysize, xsize, nb_extra_columns))
-        raster = raster.dstack((raster, raster_std))
+        raster = np.dstack((raster, raster_std))
 
     return raster
 
