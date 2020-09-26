@@ -38,7 +38,7 @@ def ply_file_with_crs():
 
 
 def test_plyflatten_from_plyfiles_list(clouds_list, expected_dsm):
-    raster, _, _ = plyflatten_from_plyfiles_list(clouds_list, resolution=2)
+    raster, _ = plyflatten_from_plyfiles_list(clouds_list, resolution=2)
     raster = raster[:, :, 0]
 
     expected_raster, _ = expected_dsm
@@ -46,7 +46,7 @@ def test_plyflatten_from_plyfiles_list(clouds_list, expected_dsm):
 
 
 def test_resolution(clouds_list, expected_dsm, r=4):
-    raster, _, _ = plyflatten_from_plyfiles_list(clouds_list, resolution=r)
+    raster, _ = plyflatten_from_plyfiles_list(clouds_list, resolution=r)
     raster = raster[:, :, 0]
 
     reference, (rx, ry) = expected_dsm
