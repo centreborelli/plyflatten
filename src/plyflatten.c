@@ -129,7 +129,7 @@ void rasterize_cloud(
 			float dist_y = yy - recenter_double(jj, yoff, -resolution);
 			float dist = hypot(dist_x, dist_y);
 			float weight = distance_weight(sigma, dist);
-			
+
 			if (insideP(x->w, x->h, ii, jj)) {
 				accumulate_height(x, ii, jj,
 						  &(input_buffer[ind+2]),
@@ -142,18 +142,16 @@ void rasterize_cloud(
 
 	// set unknown values to NAN
 	for (uint64_t i = 0; i < (uint64_t) xsize*ysize; i++) {
-		if (!x->cnt[i])
-		for (uint64_t j = 0; j < (uint64_t) nb_extra_columns; j++)
-			x->avg[nb_extra_columns*i+j] = NAN;
-		if (x->cnt[i]<2) {
-			for (uint64_t j = 0; j < (uint64_t) nb_extra_columns; j++)
+		if (!x->cnt[i]) {
+			for (uint64_t j = 0; j < (uint64_t) nb_extra_columns; j++) {
+				x->avg[nb_extra_columns*i+j] = NAN;
 				x->std[nb_extra_columns*i+j] = NAN;
-		}
-		else {
+			}
+		} else {
 			// so far x->std contains E[x^2] and x->avg contains E[x]
 			// the standard deviation is then computed std = sqrt(E[x^2] - E[x]^2)
 			for (uint64_t j = 0; j < (uint64_t) nb_extra_columns; j++)
-				x->std[nb_extra_columns*i+j] = sqrt( x->std[nb_extra_columns*i+j] - pow(x->avg[nb_extra_columns*i+j], 2) );
+				x->std[nb_extra_columns*i+j] = sqrt(x->std[nb_extra_columns*i+j] - pow(x->avg[nb_extra_columns*i+j], 2));
 		}
 	}
 
