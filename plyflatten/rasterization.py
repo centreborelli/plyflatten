@@ -16,7 +16,7 @@ parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 lib = ctypes.CDLL(os.path.join(parent_dir, "lib", "libplyflatten.so"))
 
 
-def plyflatten(cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma):
+def plyflatten(cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma, std=False):
     """
     Projects a points cloud into the raster band(s) of a raster image
 
@@ -33,9 +33,11 @@ def plyflatten(cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma):
         xsize, ysize: size of the georeferenced image
         radius: controls the spread of the blob from each point
         sigma: radius of influence for each point (unit: pixel)
+        std (bool): if True, return additional channels with standard deviations
 
     Returns;
-        A numpy array of shape (ysize, xsize, nb_extra_columns)
+        A numpy array of shape (ysize, xsize, n) where n is nb_extra_columns if
+            std=False and 2*nb_extra_columns if std=True
     """
     nb_points, nb_extra_columns = cloud.shape[0], cloud.shape[1] - 2
     raster_shape = (xsize * ysize, nb_extra_columns)
@@ -43,6 +45,7 @@ def plyflatten(cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma):
     # Set expected args and return types
     lib.rasterize_cloud.argtypes = (
         ndpointer(dtype=ctypes.c_double, shape=np.shape(cloud)),
+        ndpointer(dtype=ctypes.c_float, shape=raster_shape),
         ndpointer(dtype=ctypes.c_float, shape=raster_shape),
         ctypes.c_int,
         ctypes.c_int,
@@ -57,9 +60,11 @@ def plyflatten(cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma):
 
     # Call rasterize_cloud function from libplyflatten.so
     raster = np.zeros(raster_shape, dtype="float32")
+    raster_std = np.zeros(raster_shape, dtype="float32")
     lib.rasterize_cloud(
         np.ascontiguousarray(cloud.astype(np.float64)),
         raster,
+        raster_std,
         nb_points,
         nb_extra_columns,
         xoff,
@@ -73,11 +78,16 @@ def plyflatten(cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma):
 
     # Transform result into a numpy array
     raster = raster.reshape((ysize, xsize, nb_extra_columns))
+    if std:
+        raster_std = raster_std.reshape((ysize, xsize, nb_extra_columns))
+        raster = np.dstack((raster, raster_std))
 
     return raster
 
 
-def plyflatten_from_plyfiles_list(clouds_list, resolution, radius=0, roi=None, sigma=None):
+def plyflatten_from_plyfiles_list(
+    clouds_list, resolution, radius=0, roi=None, sigma=None, std=False
+):
     """
     Projects a points cloud into the raster band(s) of a raster image (points clouds as files)
 
@@ -85,6 +95,7 @@ def plyflatten_from_plyfiles_list(clouds_list, resolution, radius=0, roi=None, s
         clouds_list: list of cloud.ply files
         resolution: resolution of the georeferenced output raster file
         roi: region of interest: (xoff, yoff, xsize, ysize), compute plyextrema if None
+        std (bool): if True, return additional channels with standard deviations
 
     Returns:
         raster: georeferenced raster
@@ -118,7 +129,7 @@ def plyflatten_from_plyfiles_list(clouds_list, resolution, radius=0, roi=None, s
     # The copy() method will reorder to C-contiguous order by default:
     full_cloud = full_cloud.copy()
     sigma = float("inf") if sigma is None else sigma
-    raster = plyflatten(full_cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma)
+    raster = plyflatten(full_cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma, std)
 
     crs, crs_type = utils.crs_from_ply(clouds_list[0])
     crs_proj = utils.rasterio_crs(utils.crs_proj(crs, crs_type))

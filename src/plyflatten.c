@@ -28,6 +28,7 @@ struct accumulator_image {
 	float *max;
 	float *cnt;
 	float *avg;
+	float *std;
 	int w, h;
 };
 
@@ -50,6 +51,7 @@ static void accumulate_height(
 	for (int l = 0; l < v_size; l++) {
 		k2 = v_size*k+l;
 		x->avg[k2] = (v[l] * weight + x->cnt[k] * x->avg[k2]) / (weight + x->cnt[k]);
+		x->std[k2] = (pow(v[l], 2) * weight + x->cnt[k] * x->std[k2]) / (weight + x->cnt[k]);
 	}
 	x->cnt[k] += weight;
 }
@@ -78,6 +80,7 @@ static float distance_weight(float sigma, float d)
 void rasterize_cloud(
 		const double * input_buffer,
 		float * output_buffer,
+		float * output_buffer_std,
 		const int nb_points,
 		const int nb_extra_columns, // z, r, g, b, ...
 		const double xoff, const double yoff,
@@ -94,14 +97,18 @@ void rasterize_cloud(
 	x->max = xmalloc(xsize*ysize*sizeof(float));
 	x->cnt = xmalloc(xsize*ysize*sizeof(float));
 	x->avg = output_buffer;
+	x->std = output_buffer_std;
+
 
 	for (uint64_t i = 0; i < (uint64_t) xsize*ysize; i++) {
 		x->min[i] = INFINITY;
 		x->max[i] = -INFINITY;
 		x->cnt[i] = 0;
 	}
-	for (uint64_t i = 0; i < (uint64_t) xsize*ysize*nb_extra_columns; i++)
+	for (uint64_t i = 0; i < (uint64_t) xsize*ysize*nb_extra_columns; i++) {
 		x->avg[i] = 0;
+		x->std[i] = 0;
+	}
 
 	double sigma2mult2 = 2*sigma*sigma;
 	bool updatemmx = radius == 0;
@@ -134,10 +141,21 @@ void rasterize_cloud(
 	}
 
 	// set unknown values to NAN
-	for (uint64_t i = 0; i < (uint64_t) xsize*ysize; i++)
+	for (uint64_t i = 0; i < (uint64_t) xsize*ysize; i++) {
 		if (!x->cnt[i])
 		for (uint64_t j = 0; j < (uint64_t) nb_extra_columns; j++)
 			x->avg[nb_extra_columns*i+j] = NAN;
+		if (x->cnt[i]<2) {
+			for (uint64_t j = 0; j < (uint64_t) nb_extra_columns; j++)
+				x->std[nb_extra_columns*i+j] = NAN;
+		}
+		else {
+			// so far x->std contains E[x^2] and x->avg contains E[x]
+			// the standard deviation is then computed std = sqrt(E[x^2] - E[x]^2)
+			for (uint64_t j = 0; j < (uint64_t) nb_extra_columns; j++)
+				x->std[nb_extra_columns*i+j] = sqrt( x->std[nb_extra_columns*i+j] - pow(x->avg[nb_extra_columns*i+j], 2) );
+		}
+	}
 
 	free(x->min);
 	free(x->max);

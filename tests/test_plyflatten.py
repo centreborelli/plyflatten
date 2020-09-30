@@ -32,6 +32,16 @@ def expected_dsm():
 
 
 @pytest.fixture()
+def expected_std():
+    here = os.path.abspath(os.path.dirname(__file__))
+
+    with rasterio.open(os.path.join(here, "data", "std.tiff")) as f:
+        raster = f.read(1)
+
+    return raster
+
+
+@pytest.fixture()
 def ply_file_with_crs():
     here = os.path.abspath(os.path.dirname(__file__))
     return os.path.join(here, "data", "crs.ply")
@@ -43,6 +53,14 @@ def test_plyflatten_from_plyfiles_list(clouds_list, expected_dsm):
 
     expected_raster, _ = expected_dsm
     np.testing.assert_allclose(expected_raster, raster, equal_nan=True)
+
+
+def test_std(clouds_list, expected_std):
+    raster, _ = plyflatten_from_plyfiles_list(clouds_list, resolution=1, std=True)
+    assert raster.shape[2] == 2
+    raster = raster[:, :, 1]
+
+    np.testing.assert_allclose(expected_std, raster, equal_nan=True)
 
 
 def test_resolution(clouds_list, expected_dsm, r=4):

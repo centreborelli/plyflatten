@@ -21,7 +21,7 @@ jobs:
       install:
         - pip install "isort[pyproject]"
       script:
-        - isort --check-only
+        - isort --check-only .
 
     - stage: packaging
       name: "Python sdist installation"
