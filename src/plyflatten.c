@@ -79,8 +79,11 @@ static float distance_weight(float sigma, float d)
 
 void rasterize_cloud(
 		const double * input_buffer,
-		float * output_buffer,
-		float * output_buffer_std,
+   		float * raster_avg,
+   		float * raster_std,
+   		float * raster_min,
+   		float * raster_max,
+   		float * raster_cnt,
 		const int nb_points,
 		const int nb_extra_columns, // z, r, g, b, ...
 		const double xoff, const double yoff,
@@ -89,26 +92,15 @@ void rasterize_cloud(
 		const int radius, const float sigma)
 {
 
-	// allocate and initialize accumulator
+	// get current accumulator status
 	struct accumulator_image x[1];
 	x->w = xsize;
 	x->h = ysize;
-	x->min = xmalloc(xsize*ysize*sizeof(float));
-	x->max = xmalloc(xsize*ysize*sizeof(float));
-	x->cnt = xmalloc(xsize*ysize*sizeof(float));
-	x->avg = output_buffer;
-	x->std = output_buffer_std;
-
-
-	for (uint64_t i = 0; i < (uint64_t) xsize*ysize; i++) {
-		x->min[i] = INFINITY;
-		x->max[i] = -INFINITY;
-		x->cnt[i] = 0;
-	}
-	for (uint64_t i = 0; i < (uint64_t) xsize*ysize*nb_extra_columns; i++) {
-		x->avg[i] = 0;
-		x->std[i] = 0;
-	}
+	x->min = raster_min;
+	x->max = raster_max;
+	x->cnt = raster_cnt;
+	x->avg = raster_avg;
+	x->std = raster_std;
 
 	double sigma2mult2 = 2*sigma*sigma;
 	bool updatemmx = radius == 0;
@@ -140,6 +132,29 @@ void rasterize_cloud(
 		}
 	}
 
+}
+
+
+void finishing_touches(
+        float * raster_avg,
+   		float * raster_std,
+   		float * raster_min,
+   		float * raster_max,
+   		float * raster_cnt,
+   		const int nb_extra_columns,
+   		const int xsize, const int ysize)
+{
+
+	// get current accumulator status
+	struct accumulator_image x[1];
+	x->w = xsize;
+	x->h = ysize;
+	x->min = raster_min;
+	x->max = raster_max;
+	x->cnt = raster_cnt;
+	x->avg = raster_avg;
+	x->std = raster_std;
+
 	// set unknown values to NAN
 	for (uint64_t i = 0; i < (uint64_t) xsize*ysize; i++) {
 		if (!x->cnt[i])
@@ -156,8 +171,4 @@ void rasterize_cloud(
 				x->std[nb_extra_columns*i+j] = sqrt( x->std[nb_extra_columns*i+j] - pow(x->avg[nb_extra_columns*i+j], 2) );
 		}
 	}
-
-	free(x->min);
-	free(x->max);
-	free(x->cnt);
 }
