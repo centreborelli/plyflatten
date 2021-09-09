@@ -29,7 +29,7 @@ BOLD=$$(tput bold)
 NORMAL=$$(tput sgr0)
 
 test:
-	pytest .
+	PYTHONPATH=. pytest .
 
 release-patch:
 	@# Remove the trailing -dev0 from version number and tag the new version

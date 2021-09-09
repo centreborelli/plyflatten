@@ -15,8 +15,53 @@ from plyflatten import utils
 parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 lib = ctypes.CDLL(os.path.join(parent_dir, "lib", "libplyflatten.so"))
 
+class Raster:
 
-def plyflatten(cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma, std=False):
+    def __init__(self, xoff, yoff, resolution, xsize, ysize, radius, sigma, nb_extra_columns):
+
+        # roi, resolution, etc
+        self.xoff = xoff
+        self.yoff = yoff
+        self.resolution = resolution
+        self.xsize = xsize
+        self.ysize = ysize
+        self.radius = radius
+        self.sigma = sigma
+        self.nb_extra_columns = nb_extra_columns
+
+        # statistics we want to extract from the point clouds
+        raster_shape = (xsize * ysize, nb_extra_columns)
+        self.avg = np.zeros(raster_shape, dtype="float32")
+        self.std = np.zeros(raster_shape, dtype="float32")
+        self.min = np.inf * np.ones(raster_shape, dtype="float32")
+        self.max = -np.inf * np.ones(raster_shape, dtype="float32")
+        self.cnt = np.zeros((xsize * ysize, 1), dtype="float32")
+
+
+def compute_roi_from_ply_list(clouds_list, resolution):
+
+    xmin, xmax = np.inf, -np.inf
+    ymin, ymax = np.inf, -np.inf
+
+    for cloud in clouds_list:
+        cloud_data, _ = utils.read_3d_point_cloud_from_ply(cloud)
+        current_cloud = cloud_data.astype(np.float64)
+        xx, yy = current_cloud[:, 0], current_cloud[:, 1]
+        xmin = np.min((xmin, np.amin(xx)))
+        ymin = np.min((ymin, np.amin(yy)))
+        xmax = np.max((xmax, np.amax(xx)))
+        ymax = np.max((ymax, np.amax(yy)))
+
+    xoff = np.floor(xmin / resolution) * resolution
+    xsize = int(1 + np.floor((xmax - xoff) / resolution))
+
+    yoff = np.ceil(ymax / resolution) * resolution
+    ysize = int(1 - np.floor((ymin - yoff) / resolution))
+
+    return xoff, yoff, xsize, ysize
+
+
+def plyflatten(cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma, raster=None):
     """
     Projects a points cloud into the raster band(s) of a raster image
 
@@ -40,13 +85,20 @@ def plyflatten(cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma, std=F
             std=False and 2*nb_extra_columns if std=True
     """
     nb_points, nb_extra_columns = cloud.shape[0], cloud.shape[1] - 2
-    raster_shape = (xsize * ysize, nb_extra_columns)
+    if raster is None:
+        raster = Raster(xoff, yoff, resolution, xsize, ysize, radius, sigma, nb_extra_columns)
+    else:
+        assert nb_extra_columns == raster.nb_extra_columns
 
     # Set expected args and return types
+    raster_shape = (raster.xsize * raster.ysize, raster.nb_extra_columns)
     lib.rasterize_cloud.argtypes = (
         ndpointer(dtype=ctypes.c_double, shape=np.shape(cloud)),
         ndpointer(dtype=ctypes.c_float, shape=raster_shape),
         ndpointer(dtype=ctypes.c_float, shape=raster_shape),
+        ndpointer(dtype=ctypes.c_float, shape=raster_shape),
+        ndpointer(dtype=ctypes.c_float, shape=raster_shape),
+        ndpointer(dtype=ctypes.c_float, shape=(raster.xsize * raster.ysize, 1)),
         ctypes.c_int,
         ctypes.c_int,
         ctypes.c_double,
@@ -59,34 +111,29 @@ def plyflatten(cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma, std=F
     )
 
     # Call rasterize_cloud function from libplyflatten.so
-    raster = np.zeros(raster_shape, dtype="float32")
-    raster_std = np.zeros(raster_shape, dtype="float32")
     lib.rasterize_cloud(
         np.ascontiguousarray(cloud.astype(np.float64)),
-        raster,
-        raster_std,
+        raster.avg,
+        raster.std,
+        raster.min,
+        raster.max,
+        raster.cnt,
         nb_points,
-        nb_extra_columns,
-        xoff,
-        yoff,
-        resolution,
-        xsize,
-        ysize,
-        radius,
-        sigma,
+        raster.nb_extra_columns,
+        raster.xoff,
+        raster.yoff,
+        raster.resolution,
+        raster.xsize,
+        raster.ysize,
+        raster.radius,
+        raster.sigma,
     )
-
-    # Transform result into a numpy array
-    raster = raster.reshape((ysize, xsize, nb_extra_columns))
-    if std:
-        raster_std = raster_std.reshape((ysize, xsize, nb_extra_columns))
-        raster = np.dstack((raster, raster_std))
 
     return raster
 
 
 def plyflatten_from_plyfiles_list(
-    clouds_list, resolution, radius=0, roi=None, sigma=None, std=False
+    clouds_list, resolution, radius=0, roi=None, sigma=None, std=False, min=False, max=False
 ):
     """
     Projects a points cloud into the raster band(s) of a raster image (points clouds as files)
@@ -101,35 +148,54 @@ def plyflatten_from_plyfiles_list(
         raster: georeferenced raster
         profile: profile for rasterio
     """
-    # read points clouds
-    full_cloud = list()
-    for cloud in clouds_list:
-        cloud_data, _ = utils.read_3d_point_cloud_from_ply(cloud)
-        full_cloud.append(cloud_data.astype(np.float64))
-
-    full_cloud = np.concatenate(full_cloud)
 
     # region of interest (compute plyextrema if roi is None)
-    if roi is not None:
-        xoff, yoff, xsize, ysize = roi
-    else:
-        xx = full_cloud[:, 0]
-        yy = full_cloud[:, 1]
-        xmin = np.amin(xx)
-        xmax = np.amax(xx)
-        ymin = np.amin(yy)
-        ymax = np.amax(yy)
+    xoff, yoff, xsize, ysize = compute_roi_from_ply_list(clouds_list, resolution) if roi is None else roi
 
-        xoff = np.floor(xmin / resolution) * resolution
-        xsize = int(1 + np.floor((xmax - xoff) / resolution))
+    raster = None
+    for cloud in clouds_list:
+        cloud_data, _ = utils.read_3d_point_cloud_from_ply(cloud)
+        current_cloud = cloud_data.astype(np.float64)
 
-        yoff = np.ceil(ymax / resolution) * resolution
-        ysize = int(1 - np.floor((ymin - yoff) / resolution))
+        # The copy() method will reorder to C-contiguous order by default:
+        cloud = current_cloud.copy()
+        sigma = float("inf") if sigma is None else sigma
+        raster = plyflatten(cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma, raster)
 
-    # The copy() method will reorder to C-contiguous order by default:
-    full_cloud = full_cloud.copy()
-    sigma = float("inf") if sigma is None else sigma
-    raster = plyflatten(full_cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma, std)
+    raster_shape = (raster.xsize * raster.ysize, raster.nb_extra_columns)
+    lib.finishing_touches.argtypes = (
+        ndpointer(dtype=ctypes.c_float, shape=raster_shape),
+        ndpointer(dtype=ctypes.c_float, shape=raster_shape),
+        ndpointer(dtype=ctypes.c_float, shape=raster_shape),
+        ndpointer(dtype=ctypes.c_float, shape=raster_shape),
+        ndpointer(dtype=ctypes.c_float, shape=(raster.xsize * raster.ysize, 1)),
+        ctypes.c_int,
+        ctypes.c_int,
+        ctypes.c_int,
+    )
+
+    lib.finishing_touches(
+        raster.avg,
+        raster.std,
+        raster.min,
+        raster.max,
+        raster.cnt,
+        raster.nb_extra_columns,
+        raster.xsize,
+        raster.ysize,
+    )
+
+    # Transform result into a numpy array
+    raster_ = raster.avg.reshape((raster.ysize, raster.xsize, raster.nb_extra_columns))
+    if std:
+        raster_std = raster.std.reshape((raster.ysize, raster.xsize, raster.nb_extra_columns))
+        raster_ = np.dstack((raster_, raster_std))
+    if min:
+        raster_min = raster.min.reshape((raster.ysize, raster.xsize, raster.nb_extra_columns))
+        raster_ = np.dstack((raster_, raster_min))
+    if max:
+        raster_max = raster.max.reshape((raster.ysize, raster.xsize, raster.nb_extra_columns))
+        raster_ = np.dstack((raster_, raster_max))
 
     crs, crs_type = utils.crs_from_ply(clouds_list[0])
     crs_proj = utils.rasterio_crs(utils.crs_proj(crs, crs_type))
@@ -143,4 +209,4 @@ def plyflatten_from_plyfiles_list(
     profile["crs"] = crs_proj
     profile["transform"] = affine.Affine(resolution, 0.0, xoff, 0.0, -resolution, yoff)
 
-    return raster, profile
+    return raster_, profile

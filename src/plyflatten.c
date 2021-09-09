@@ -38,20 +38,16 @@ static void accumulate_height(
 		int i, int j,         // position of the new height
 		const double *v,      // new height (and r, b, g...)
 		int v_size,           // nb "extra" columns (height, r, g, b...)
-		float weight,         // relative weight
-		bool updateminmax)    // whether to update min,max fields
-		                      // (only makes sense when radius=1)
+		float weight)         // relative weight
 {
 	uint64_t k = (uint64_t) x->w * j + i;
-	if (updateminmax) {
-		x->min[k] = fmin(x->min[k], v[0]);
-		x->max[k] = fmax(x->max[k], v[0]);
-	}
 	uint64_t k2;
 	for (int l = 0; l < v_size; l++) {
 		k2 = v_size*k+l;
 		x->avg[k2] = (v[l] * weight + x->cnt[k] * x->avg[k2]) / (weight + x->cnt[k]);
 		x->std[k2] = (pow(v[l], 2) * weight + x->cnt[k] * x->std[k2]) / (weight + x->cnt[k]);
+		x->min[k2] = fmin(x->min[k2], v[l]);
+		x->max[k2] = fmax(x->max[k2], v[l]);
 	}
 	x->cnt[k] += weight;
 }
@@ -79,8 +75,11 @@ static float distance_weight(float sigma, float d)
 
 void rasterize_cloud(
 		const double * input_buffer,
-		float * output_buffer,
-		float * output_buffer_std,
+		float * raster_avg,
+		float * raster_std,
+		float * raster_min,
+		float * raster_max,
+		float * raster_cnt,
 		const int nb_points,
 		const int nb_extra_columns, // z, r, g, b, ...
 		const double xoff, const double yoff,
@@ -89,29 +88,17 @@ void rasterize_cloud(
 		const int radius, const float sigma)
 {
 
-	// allocate and initialize accumulator
+	// get current accumulator status
 	struct accumulator_image x[1];
 	x->w = xsize;
 	x->h = ysize;
-	x->min = xmalloc(xsize*ysize*sizeof(float));
-	x->max = xmalloc(xsize*ysize*sizeof(float));
-	x->cnt = xmalloc(xsize*ysize*sizeof(float));
-	x->avg = output_buffer;
-	x->std = output_buffer_std;
-
-
-	for (uint64_t i = 0; i < (uint64_t) xsize*ysize; i++) {
-		x->min[i] = INFINITY;
-		x->max[i] = -INFINITY;
-		x->cnt[i] = 0;
-	}
-	for (uint64_t i = 0; i < (uint64_t) xsize*ysize*nb_extra_columns; i++) {
-		x->avg[i] = 0;
-		x->std[i] = 0;
-	}
+	x->min = raster_min;
+	x->max = raster_max;
+	x->cnt = raster_cnt;
+	x->avg = raster_avg;
+	x->std = raster_std;
 
 	double sigma2mult2 = 2*sigma*sigma;
-	bool updatemmx = radius == 0;
 
 	// accumulate points of cloud to the image
 	for (uint64_t k = 0; k < (uint64_t) nb_points; k++) {
@@ -133,18 +120,44 @@ void rasterize_cloud(
 			if (insideP(x->w, x->h, ii, jj)) {
 				accumulate_height(x, ii, jj,
 						  &(input_buffer[ind+2]),
-						  nb_extra_columns,
-						  weight, updatemmx);
+						  nb_extra_columns, weight);
 				assert(isfinite(input_buffer[ind+2]));
 			}
 		}
 	}
 
+}
+
+
+void finishing_touches(
+		float * raster_avg,
+		float * raster_std,
+		float * raster_min,
+		float * raster_max,
+		float * raster_cnt,
+		const int nb_extra_columns,
+		const int xsize, const int ysize)
+{
+
+	// get current accumulator status
+	struct accumulator_image x[1];
+	x->w = xsize;
+	x->h = ysize;
+	x->min = raster_min;
+	x->max = raster_max;
+	x->cnt = raster_cnt;
+	x->avg = raster_avg;
+	x->std = raster_std;
+
 	// set unknown values to NAN
 	for (uint64_t i = 0; i < (uint64_t) xsize*ysize; i++) {
-		if (!x->cnt[i])
-		for (uint64_t j = 0; j < (uint64_t) nb_extra_columns; j++)
-			x->avg[nb_extra_columns*i+j] = NAN;
+		if (!x->cnt[i]){
+			for (uint64_t j = 0; j < (uint64_t) nb_extra_columns; j++){
+				x->avg[nb_extra_columns*i+j] = NAN;
+				x->min[nb_extra_columns*i+j] = NAN;
+				x->max[nb_extra_columns*i+j] = NAN;
+		}
+		}
 		if (x->cnt[i]<2) {
 			for (uint64_t j = 0; j < (uint64_t) nb_extra_columns; j++)
 				x->std[nb_extra_columns*i+j] = NAN;
@@ -156,8 +169,4 @@ void rasterize_cloud(
 				x->std[nb_extra_columns*i+j] = sqrt( x->std[nb_extra_columns*i+j] - pow(x->avg[nb_extra_columns*i+j], 2) );
 		}
 	}
-
-	free(x->min);
-	free(x->max);
-	free(x->cnt);
 }
