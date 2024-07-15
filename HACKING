@@ -1,0 +1,9 @@
+python binding to plyflatten installable via "pip install plyflatten"
+
+To update the pypi hub, you need an account on pypi, and then run the following
+commands:
+
+        # update version number on file plyflatten/__about__.py
+	python setup.py sdist bdist_wheel
+	python -m twine upload dist/plyflatten-X.tar.gz
+	rm -rf build dist plyflatten.egg-info
