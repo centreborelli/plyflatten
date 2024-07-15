@@ -133,7 +133,7 @@ def plyflatten(cloud, xoff, yoff, resolution, xsize, ysize, radius, sigma, raste
 
 
 def plyflatten_from_plyfiles_list(
-    clouds_list, resolution, radius=0, roi=None, sigma=None, std=False, min=False, max=False
+    clouds_list, resolution, radius=0, roi=None, sigma=None, std=False, amin=False, amax=False
 ):
     """
     Projects a points cloud into the raster band(s) of a raster image (points clouds as files)
@@ -190,10 +190,10 @@ def plyflatten_from_plyfiles_list(
     if std:
         raster_std = raster.std.reshape((raster.ysize, raster.xsize, raster.nb_extra_columns))
         raster_ = np.dstack((raster_, raster_std))
-    if min:
+    if amin:
         raster_min = raster.min.reshape((raster.ysize, raster.xsize, raster.nb_extra_columns))
         raster_ = np.dstack((raster_, raster_min))
-    if max:
+    if amax:
         raster_max = raster.max.reshape((raster.ysize, raster.xsize, raster.nb_extra_columns))
         raster_ = np.dstack((raster_, raster_max))
 
