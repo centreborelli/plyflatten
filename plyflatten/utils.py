@@ -1,5 +1,5 @@
 import re
-from distutils.version import LooseVersion
+from packaging import version
 
 import numpy as np
 import plyfile
@@ -24,7 +24,7 @@ def rasterio_crs(proj_crs):
     Returns:
         rasterio.crs.CRS: object that can be used with rasterio
     """
-    if LooseVersion(rasterio.__gdal_version__) < LooseVersion("3.0.0"):
+    if version.parse(rasterio.__gdal_version__) < version.parse("3.0.0"):
         rio_crs = RioCRS.from_wkt(proj_crs.to_wkt(WktVersion.WKT1_GDAL))
     else:
         rio_crs = RioCRS.from_wkt(proj_crs.to_wkt())
